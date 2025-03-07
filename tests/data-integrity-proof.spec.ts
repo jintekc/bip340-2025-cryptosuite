@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { Cryptosuite } from '../src/di-bip340/cryptosuite/index.js';
 import { DataIntegrityProof } from '../src/di-bip340/data-integrity-proof/index.js';
 import { Multikey } from '../src/di-bip340/multikey/index.js';
-import { KeyPair, PrivateKey } from '../src/index.js';
+import { KeyPair, PrivateKey, PrivateKeyUtils } from '../src/index.js';
 import { ProofOptions } from '../src/types/di-proof.js';
 
 const unsecuredDocument = {
@@ -33,7 +33,7 @@ const options: ProofOptions = {
 };
 
 describe('Data Integrity Proof', () => {
-  const privateKey = PrivateKey.fromSecret(SECRET);
+  const privateKey = PrivateKeyUtils.fromSecret(SECRET);
   const keyPair = new KeyPair({ privateKey });
   const multikey = new Multikey({ id, controller, keyPair });
   const cryptosuite = new Cryptosuite({ cryptosuite: 'bip340-jcs-2025', multikey });

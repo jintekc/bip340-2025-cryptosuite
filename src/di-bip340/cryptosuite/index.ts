@@ -155,34 +155,18 @@ export class Cryptosuite implements ICryptosuite {
 
   /** @see ICryptosuite.generateHash */
   public generateHash({ canonicalConfig, canonicalDocument }: GenerateHashParams): HashBytes {
-    // Convert the canonical proof config to buffer
-    const configBuffer = Buffer.from(canonicalConfig, 'utf-8');
+    // Convert the canonical proof config to buffer and sha256 hash it
+    const configHash = sha256(Buffer.from(canonicalConfig, 'utf-8'));
 
-    // Convert the canonical document to buffer
-    const documentBuffer = Buffer.from(canonicalDocument, 'utf-8');
+    // Convert the canonical document to buffer and sha256 hash it
+    const documentHash = sha256(Buffer.from(canonicalDocument, 'utf-8'));
 
-    // Concatenate the buffers and hash the result
-    const bytesToHash = Buffer.concat([configBuffer, documentBuffer]);
+    // Concatenate the hashes
+    const combinedHash = Buffer.concat([configHash, documentHash]);
 
-    // Hash both, concat, rehash and return
-    // Return the hash bytes
-    return sha256(bytesToHash);
+    // sha256 hash the combined hashes and return
+    return sha256(combinedHash);
   }
-
-  /*
-   // Convert the canonical proof config to buffer
-    const canonConfigHash = sha256(Buffer.from(canonicalConfig, 'utf-8'));
-
-    // Convert the canonical document to buffer
-    const canonDocumentHash = sha256(Buffer.from(canonicalDocument, 'utf-8'));
-
-    // Concatenate the buffers and hash the result
-    const bytesToHash = Buffer.concat([canonConfigHash, canonDocumentHash]);
-
-    // Hash both, concat, rehash and return
-    // Return the hash bytes
-    return sha256(bytesToHash);
-  */
 
   /** @see ICryptosuite.proofConfiguration */
   public async proofConfiguration({ options }: ProofOptionsParam): Promise<CanonicalizedProofConfig> {

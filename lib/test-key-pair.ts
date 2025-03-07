@@ -1,11 +1,7 @@
 import { KeyPair } from '../src/keys/key-pair.js';
+import { PrivateKeyUtils } from '../src/keys/private-key.js';
 
-const privateKeyBytes = new Uint8Array([
-  115, 253, 220, 18, 252, 147, 66, 187,
-  41, 174, 155, 94, 212, 118, 50,  59,
-  220, 105,  58, 17, 110,  54, 81,  36,
-  85, 174, 232, 48, 254, 138, 37, 162
-]);
+const privateKeyBytes = PrivateKeyUtils.random();
 const kpFromPrv = KeyPair.fromPrivateKey(privateKeyBytes);
 console.log('kpFromPrv.privateKey', kpFromPrv.privateKey);
 console.log('kpFromPrv.publicKey', kpFromPrv.publicKey);

@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { Multikey } from '../src/di-bip340/multikey/index.js';
-import { KeyPair, KeyPairError, MultikeyError, PrivateKey, PrivateKeyError, PublicKey } from '../src/index.js';
+import { KeyPair, KeyPairError, KeyPairUtils, MultikeyError, PrivateKey, PrivateKeyUtils, PublicKey } from '../src/index.js';
 import ObjectUtils from '../src/utils/object-utils.js';
 
 /**
@@ -27,7 +27,7 @@ describe('Multikey instantiated', () => {
     156,  26, 118, 240,  76, 102,  53,  38,
     239
   ]);*/
-  const keyPair = KeyPair.fromPrivateKey(privateKeyBytes);
+  const keyPair = KeyPairUtils.fromPrivateKey(privateKeyBytes);
   const { publicKey, privateKey } = keyPair;
 
   // Multikey Constants
@@ -251,7 +251,7 @@ describe('Multikey instantiated', () => {
    */
   describe('Multikey from KeyPair with PrivateKey fromSecret', () => {
     const SECRET = 52464508790539176856770556715241483442035423615466097401201513777400180778402n;
-    const privateKey = PrivateKey.fromSecret(SECRET);
+    const privateKey = PrivateKeyUtils.fromSecret(SECRET);
     const keyPair = new KeyPair({ privateKey });
     const multikey = new Multikey({ id, controller, keyPair });
 

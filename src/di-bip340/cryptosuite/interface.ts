@@ -14,7 +14,7 @@ import {
   SecureDocument,
   VerificationResult
 } from '../../types/di-proof.js';
-import { HashBytes, HashHex, SignatureBytes } from '../../types/shared.js';
+import { HashHex, SignatureBytes } from '../../types/shared.js';
 import { Multikey } from '../multikey/index.js';
 
 /**
@@ -72,7 +72,7 @@ export interface ICryptosuite {
    * @param {GenerateHashParams} params The parameters to use when generating the hash.
    * @param {string} params.canonicalConfig The canonicalized proof configuration.
    * @param {string} params.canonicalDocument The canonicalized document.
-   * @returns {HashBytes} The hash string of the proof configuration and document.
+   * @returns {HashHex} The hash string of the proof configuration and document.
    */
   generateHash({ canonicalConfig, canonicalDocument }: GenerateHashParams): HashHex;
 

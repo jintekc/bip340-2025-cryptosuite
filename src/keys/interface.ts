@@ -1,5 +1,4 @@
-import { Hex, PrivateKeyBytes, PublicKeyBytes } from '../types/shared.js';
-import { KeyPair } from './key-pair.js';
+import { Hex, PrefixBytes, PrivateKeyBytes, PublicKeyBytes, PublicKeyMultibaseBytes } from '../types/shared.js';
 import { PrivateKey } from './private-key.js';
 import { PublicKey } from './public-key.js';
 
@@ -14,7 +13,7 @@ export interface IPrivateKey {
    * Get the private key bytes
    * @readonly @type {PrivateKeyBytes} The private key bytes.
    */
-  raw: PrivateKeyBytes;
+  bytes: PrivateKeyBytes;
 
   /**
    * Getter returns the private key bytes in secret form.
@@ -38,6 +37,7 @@ export interface IPrivateKey {
 
   /**
    * Uses the private key to compute the corresponding public key.
+   * @see PrivateKeyUtils.computePublicKey
    * @public
    * @returns {PublicKey} A new PublicKey object
    */
@@ -59,29 +59,53 @@ export interface IPrivateKey {
  * @type {IPublicKey}
  */
 export interface IPublicKey {
-  /** @type {PublicKeyBytes} Get the 33-byte compressed public key bytes */
+  /**
+   * Compressed public key getter
+   * @type {PublicKeyBytes} The 33 byte compressed public key [parity, x-coord]
+   */
   compressed: PublicKeyBytes;
 
-  /** @type {number} Get the prefixed parity byte byte of the public key (must be 0x02) */
-  prefix: number;
-
-  /** @type {PublicKeyBytes} Get the 32-byte x-only public key (for schnorr ops) */
-  x: PublicKeyBytes;
-
-  /** @type {PublicKeyBytes} Get the 32-byte y-coordinate of the public key */
-  y: PublicKeyBytes;
-
-  /** @type {PublicKeyBytes} Get the uncompressed (65-byte) public key: prefix, x-coord, y-coord */
+  /**
+   * Uncompressed public key getter
+   * @type {PublicKeyBytes} The 65 byte uncompressed public key [0x04, x-coord, y-coord]
+   */
   uncompressed: PublicKeyBytes;
 
-  /** @returns {string} Get the compressed x-only public key in base58btc multibase format */
+  /**
+   * Public key parity getter
+   * @type {number} The 1 byte parity (0x02 if even, 0x03 if odd)
+   */
+  parity: number;
+
+  /**
+   * Public key multibase prefix getter
+   * @type {PrefixBytes} The 2 byte multibase prefix
+   */
+  prefix: PrefixBytes;
+
+  /**
+   * Public key x-coordinate getter
+   * @type {PublicKeyBytes} The 32 byte x-coordinate of the public key
+   */
+  x: PublicKeyBytes;
+
+  /**
+   * Public key y-coordinate getter
+   * @type {PublicKeyBytes} The 32 byte y-coordinate of the public key
+   */
+  y: PublicKeyBytes;
+
+  /**
+   * Public key multibase getter
+   * @returns {string} The public key as a base58btc multibase string
+   */
   multibase: string;
 
   /**
    * Decode the base58btc multibase string to the compressed public key prefixed with 0x02
-   * @returns {PublicKeyBytes} The public key as a 33-byte compressed public key with header.
+   * @returns {PublicKeyMultibaseBytes} The public key as a 33-byte compressed public key with header.
    */
-  decode(): PublicKeyBytes;
+  decode(): PublicKeyMultibaseBytes;
 
   /**
    * Encode the PublicKey as an x-only base58btc multibase public key
@@ -90,23 +114,17 @@ export interface IPublicKey {
   encode(): string;
 
   /**
-   * Returns the public key as a hex string
-   * @returns {Hex} The public key as a hex string
+   * Public key hex getter.
+   * @returns {Hex} The public key as a hex string.
    */
   hex(): Hex;
 
   /**
-   * Checks if this public key is equal to another public key
-   * @param {PublicKey} other The public key to compare
-   * @returns {boolean} True if the public keys are equal
+   * Public key equality check. Checks if `this` public key is equal to `other` public key.
+   * @param {PublicKey} other The public key to compare.
+   * @returns {boolean} True if the public keys are equal.
    */
   equals(other: PublicKey): boolean;
-}
-
-export interface IPublicKeyUtils {
-  generate(): KeyPair;
-  decode(publicKeyMultibase: string): PublicKeyBytes;
-  encode(xOnlyPublicKeyBytes: PublicKeyBytes): string;
 }
 
 /**

@@ -7,7 +7,8 @@ export type HashHex = Hex;
 export type Bytes = Uint8Array;
 export type PrivateKeyBytes = Bytes;
 export type PublicKeyBytes = Bytes;
-export type MultikeyPrefix = Bytes;
+export type PrefixBytes = Bytes;
+export type PublicKeyMultibaseBytes = Bytes;
 export type SignatureBytes = Bytes;
 export type ProofBytes = Bytes;
 export type HashBytes = Bytes;
@@ -47,3 +48,8 @@ export type Seconds = TwoDigits;
 export type UtcTimestamp = `${Year}-${Month}-${Day}T${Hours}:${Minutes}:${Seconds}`;
 export type TzOffset = `${Hours}:${Minutes}`;
 export type DateTimestamp = `${UtcTimestamp}Z` | `${UtcTimestamp}-${TzOffset}`;
+export type DecodedPublicKeyMultibase = {
+  prefix: PrefixBytes;
+  publicKey: PublicKeyBytes;
+  multibase: PublicKeyMultibaseBytes;
+};

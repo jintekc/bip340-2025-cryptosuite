@@ -1,10 +1,11 @@
+import { sha256 } from '@noble/hashes/sha256';
 import { base58btc } from 'multiformats/bases/base58';
 import * as tinysecp from 'tiny-secp256k1';
-import { Hex, PrivateKeyBytes, PublicKeyBytes } from '../types/shared.js';
+import { Hex, PrefixBytes, PrivateKeyBytes, PublicKeyBytes, PublicKeyMultibaseBytes } from '../types/shared.js';
 import { PublicKeyError } from '../utils/error.js';
+import { BIP340_MULTIKEY_PREFIX, BIP340_MULTIKEY_PREFIX_HASH, CURVE } from './constants.js';
 import { IPublicKey } from './interface.js';
 import { PrivateKey, PrivateKeyUtils } from './private-key.js';
-import { SECP256K1_XONLY_PREFIX } from './constants.js';
 
 /**
  * Encapsulates a secp256k1 public key.
@@ -16,6 +17,9 @@ import { SECP256K1_XONLY_PREFIX } from './constants.js';
  * @implements {IPublicKey}
  */
 export class PublicKey implements IPublicKey {
+  /** @type {PublicKeyUtils} Static PublicKeyUtils class instance */
+  public utils: PublicKeyUtils = new PublicKeyUtils();
+
   /** @type {PublicKeyBytes} The Uint8Array public key */
   private readonly _bytes: PublicKeyBytes;
 
@@ -23,17 +27,21 @@ export class PublicKey implements IPublicKey {
    * Creates an instance of PublicKey.
    * @constructor
    * @param {PublicKeyBytes} bytes The public key byte array.
-   * @throws {PublicKeyError} if the bytes are not x-only or compressed with 0x02 prefix
+   * @throws {PublicKeyError} if the byte length is not 32 (x-only) or 33 (compressed)
    */
   constructor(bytes: PublicKeyBytes) {
+    // If the byte length is not 32 or 33, throw an error
     const bytelength = bytes.length;
-    if(bytelength === 33 && bytes[0] === 3) {
+    if(![32, 33].includes(bytelength)) {
       throw new PublicKeyError(
-        'Invalid argument: "bytes" must be 32-byte x-only or 33-byte compressed with 0x02 prefix',
+        'Invalid argument: byte length must be 32 (x-only) or 33 (compressed)',
         'PUBLIC_KEY_CONSTRUCTOR_ERROR'
       );
     }
-    this._bytes = bytelength === 32 ? new Uint8Array([0x02, ...Array.from(bytes)]) : bytes;
+    // If the byte length is 32, prepend the parity byte, else set the bytes
+    this._bytes = bytelength === 32
+      ? new Uint8Array([0x02, ...Array.from(bytes)])
+      : bytes;
   }
 
   /** @see IPublicKey.compressed */
@@ -41,10 +49,15 @@ export class PublicKey implements IPublicKey {
     return new Uint8Array(this._bytes);
   }
 
+  /** @see IPublicKey.uncompressed */
+  get uncompressed(): PublicKeyBytes {
+    return this.utils.liftX(this.x);
+  }
+
   /** @see IPublicKey.parity */
-  get prefix(): number {
-    const prefixb = this.compressed[0];
-    return prefixb;
+  get parity(): number {
+    const parityb = this.compressed[0];
+    return parityb;
   }
 
   /** @see IPublicKey.x */
@@ -57,26 +70,64 @@ export class PublicKey implements IPublicKey {
     return this.uncompressed.slice(33, 65);
   }
 
-  /** @see IPublicKey.uncompressed */
-  get uncompressed(): PublicKeyBytes {
-    return tinysecp.pointCompress(this.compressed, false) as PublicKeyBytes;
-  }
-
   /** @see IPublicKey.multibase */
   get multibase(): string {
-    return PublicKeyUtils.encode(this.x);
+    return this.encode();
   }
 
-  /** @see IPublicKey.decode */
-  /** @see PublicKeyUtils.decode */
+  /** @see IPublicKey.prefix */
+  get prefix(): PrefixBytes {
+    return this.decode();
+  }
+
+
+  /**
+   * Decodes the multibase string to the 34-byte corresponding public key (2 byte prefix + 32 byte public key).
+   * @static
+   * @returns {PublicKeyMultibaseBytes} The decoded public key: prefix and public key bytes
+   */
+  public decode(): PublicKeyMultibaseBytes {
+    // Decode the public key multibase string
+    const multibase = base58btc.decode(this.multibase);
+
+    // If the public key bytes are not 34 bytes, throw an error
+    if(multibase.length !== 34) {
+      throw new PublicKeyError('Invalid argument: must be 34 byte publicKeyMultibase', 'DECODE_PUBLIC_KEY_ERROR');
+    }
+
+    // Grab the prefix bytes
+    const prefix = multibase.subarray(0, 2);
+    // Compute the prefix hash
+    const prefixHash = Buffer.from(sha256(prefix)).toString('hex');
+
+    // If the prefix hash does not equal the BIP340 prefix hash, throw an error
+    if (prefixHash !== BIP340_MULTIKEY_PREFIX_HASH) {
+      throw new PublicKeyError(`Invalid prefix: malformed multibase prefix ${prefix}`, 'DECODE_PUBLIC_KEY_ERROR');
+    }
+
+    // Return the decoded public key bytes
+    return multibase;
+  }
+
+  /**
+   * Encodes compressed secp256k1 public key from bytes to BIP340 base58btc multibase format
+   * @static
+   * @returns {string} The public key encoded in base-58-btc multibase format
+   */
   public encode(): string {
-    return PublicKeyUtils.encode(this.x);
-  }
+    // Create a local copy of the public key x-coordinate to avoid mutation
+    const xCoordinate = this.x;
 
-  /** @see IPublicKey.decode */
-  /** @see PublicKeyUtils.decode */
-  public decode(): PublicKeyBytes {
-    return PublicKeyUtils.decode(this.multibase);
+    // Ensure the public key is schnorr x-only (32 bytes)
+    if (xCoordinate.length !== 32) {
+      throw new PublicKeyError('Invalid argument: must be x-only public key (32 bytes)', 'ENCODE_PUBLIC_KEY_ERROR');
+    }
+
+    // Convert the prefix and public key bytes to arrays and dump into new Uint8Array
+    const multikeyBytes = new Uint8Array([...Array.from(BIP340_MULTIKEY_PREFIX), ...Array.from(xCoordinate)]);
+
+    // Encode as a multibase base58btc string
+    return base58btc.encode(multikeyBytes);
   }
 
   /** @see IPublicKey.hex */
@@ -92,25 +143,30 @@ export class PublicKey implements IPublicKey {
 
 /**
  * Utility class for Multikey operations/
- *
  * @export
  * @class PublicKeyUtils
  * @type {PublicKeyUtils}
- * @implements {IPublicKey}
  */
 export class PublicKeyUtils {
   /**
-   * Computes a private key's public key in compressed even-parity-only format.
+   * Computes the deterministic public key for a given private key.
    * @static
-   * @param {PrivateKeyBytes} privateKeyBytes The private key bytes
+   * @param {PrivateKey | PrivateKeyBytes} pk The PrivateKey object or the private key bytes
    * @returns {PublicKey} A new PublicKey object
    */
-  public static fromPrivateKey(privateKeyBytes: PrivateKeyBytes): PublicKey {
-    const bytelength = privateKeyBytes.length;
-    if(bytelength !== 32) {
+  public static fromPrivateKey(pk: PrivateKeyBytes): PublicKey {
+    // If the private key is a PrivateKey object, get the raw bytes else use the bytes
+    const bytes = pk instanceof PrivateKey ? pk.bytes : pk;
+
+    // Throw error if the private key is not 32 bytes
+    if(bytes.length !== 32) {
       throw new PublicKeyError('Invalid arg: must be 32 byte private key', 'FROM_PRIVATE_KEY_ERROR');
     }
-    const privateKey = new PrivateKey(privateKeyBytes);
+
+    // Compute the public key from the private key
+    const privateKey = pk instanceof PrivateKey ? pk : new PrivateKey(pk);
+
+    // Return a new PublicKey object
     return privateKey.computePublicKey();
   }
 
@@ -146,56 +202,63 @@ export class PublicKeyUtils {
   }
 
   /**
-   * Adjusts a secp256k1 public key to have even parity (leading byte 0x02).
+   * Computes modular exponentiation: (base^exp) % mod.
+   * Used for computing modular square roots.
    * @static
-   * @param {Uint8Array} publicKey The compressed public key.
-   * @returns {Uint8Array} Adjusted public key with even parity.
+   * @param {bigint} base The base value
+   * @param {bigint} exp The exponent value
+   * @param {bigint} mod The modulus value
+   * @returns {bigint} The result of the modular exponentiation
    */
-  public static ensureEvenParity(publicKey: Uint8Array): Uint8Array {
-    // Check if the public key has the correct length, is compressed and has parity byte of 2 or 3
-    if (publicKey.length !== 33 || (publicKey[0] !== 0x02 && publicKey[0] !== 0x03)) {
-      throw new PublicKeyError('Invalid format: publicKey must 33 byte compressed', 'ENSURE_EVEN_PARITY_ERROR');
+  public modPow(base: bigint, exp: bigint, mod: bigint): bigint {
+    let result = 1n;
+    while (exp > 0n) {
+      if (exp & 1n) result = (result * base) % mod;
+      base = (base * base) % mod;
+      exp >>= 1n;
     }
-
-    // If the public key starts with 0x03, flip the prefix to 0x02
-    if (publicKey[0] === 0x03) {
-      const adjustedPublicKey = new Uint8Array(publicKey);
-      adjustedPublicKey[0] = 0x02; // Flip to even parity
-      return adjustedPublicKey;
-    }
-
-    // Already even parity, return as is
-    return publicKey;
-  }
+    return result;
+  };
 
   /**
-   * Decodes a string in compressed secp256k1 base58btc multibase format to its corresponding public key bytes
+   * Computes `sqrt(a) mod p` using Tonelli-Shanks algorithm.
+   * This finds `y` such that `y^2 ≡ a mod p`.
    * @static
-   * @param {PublicKeyMultibase} publicKeyMultibase The multibase formatted public key
-   * @returns {PublicKey}
+   * @param {bigint} a The value to find the square root of
+   * @param {bigint} p The prime modulus
+   * @returns {bigint} The square root of `a` mod `p`
    */
-  public static decode(publicKeyMultibase: string): PublicKeyBytes {
-    const publicKeyBytes = base58btc.decode(publicKeyMultibase);
-    const prefix = publicKeyBytes.subarray(0, 2);
-    if (!prefix.every((b, i) => b === SECP256K1_XONLY_PREFIX[i])) {
-      throw new PublicKeyError('Invalid prefix: malformed multibase prefix', 'DECODE_PUBLIC_KEY_MULTIBASE_ERROR');
-    }
-    return publicKeyBytes;
-  }
+  public sqrtMod(a: bigint, p: bigint): bigint {
+    return this.modPow(a, (p + 1n) >> 2n, p);
+  };
 
   /**
-   * Encodes compressed secp256k1 public key from bytes to BIP340 base58btc multibase format
-   * @static
-   * @param {PublicKeyBytes} xOnlyPublicKeyBytes
-   * @returns {PublicKeyMultibase}
+   * Lifts a 32-byte x-only coordinate into a full secp256k1 point (x, y).
+   * @param xBytes 32-byte x-coordinate
+   * @returns {Uint8Array} 65-byte uncompressed public key (starts with `0x04`)
    */
-  public static encode(xOnlyPublicKeyBytes: PublicKeyBytes): string {
-    if (xOnlyPublicKeyBytes.length !== 32) {
-      throw new PublicKeyError('x-only public key must be 32 bytes');
+  public liftX(xBytes: Uint8Array): Uint8Array {
+    // Ensure x-coordinate is 32 bytes
+    if (xBytes.length !== 32) {
+      throw new PublicKeyError('Invalid argument: x-coordinate length must be 32 bytes', 'LIFT_X_ERROR');
     }
-    // Set the prefix and the public key bytes
-    const multikeyBytes = new Uint8Array([...Array.from(SECP256K1_XONLY_PREFIX), ...Array.from(xOnlyPublicKeyBytes)]);
-    // Encode the public key as a multibase base58btc string
-    return base58btc.encode(multikeyBytes);
-  }
+
+    // Convert x from Uint8Array → BigInt
+    const x = BigInt('0x' + Buffer.from(xBytes).toString('hex'));
+    if (x <= 0n || x >= CURVE.p) {
+      throw new PublicKeyError('Invalid conversion: x out of range as BigInt', 'LIFT_X_ERROR');
+    }
+
+    // Compute y² = x³ + 7 mod p
+    const ySquared = BigInt((x ** 3n + CURVE.b) % CURVE.p);
+
+    // Compute y (do not enforce parity)
+    const y = this.sqrtMod(ySquared, CURVE.p);
+
+    // Convert x and y to Uint8Array
+    const yBytes = Buffer.from(y.toString(16).padStart(64, '0'), 'hex');
+
+    // Return 65-byte uncompressed public key: `0x04 || x || y`
+    return new Uint8Array(Buffer.concat([Buffer.from([0x04]), Buffer.from(xBytes), yBytes]));
+  };
 }
