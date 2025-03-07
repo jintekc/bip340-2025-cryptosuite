@@ -1,9 +1,9 @@
 import { DidVerificationMethod } from '@web5/dids';
-import { PublicKey } from '../../keys/public-key.js';
-import { HashBytes, MessageBytes, PrivateKeyBytes, PublicKeyBytes, SignatureBytes } from '../../types/shared.js';
-import { Multikey } from './index.js';
-import { PrivateKey } from '../../keys/private-key.js';
 import { KeyPair } from '../../keys/key-pair.js';
+import { PrivateKey } from '../../keys/private-key.js';
+import { PublicKey } from '../../keys/public-key.js';
+import { MessageBytes, PrivateKeyBytes, PublicKeyBytes, SignatureBytes } from '../../types/shared.js';
+import { Multikey } from './index.js';
 export interface DidParams {
   id: string;
   controller: string;
